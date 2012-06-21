@@ -37,10 +37,6 @@ class Address
         unless value? then @["_#{prop}"]
         else @["_#{prop}"] = value; @
 
-  constructor: (line, postalCode = undefined) ->
-    @line line
-    @postalCode postalCode
-
   # adds address "line", where each line added is ultimately
   # represented as "Line[#]" in request, where # is between 1 and 3
   line: (line) ->
@@ -83,11 +79,6 @@ class OrderLine
 
   # fields required by API
   _required: ['dest','origin','price','qty']
-
-  constructor: (price, origin = undefined, dest = undefined) ->
-    @price price
-    @origin origin
-    @destination dest
 
   # quantity shipped/purchased
   quantity: (qty) ->
@@ -148,6 +139,9 @@ class GetTax
       throw new Error 'incorrect type: expected Address' unless address.constructor is Address
       unless @_addresses[address.toString()]?
         @_addresses[address.toString()] = address.validate()
+        # assign address code based upon index we decide for it within request
+        # TODO this a possibly a bad idea. what if address is being shared between
+        # instances of GetTax? quite possible given asynchronous modality of JS
         address.addressCode ++@_addrCount
       return @
     @_addresses
@@ -158,8 +152,8 @@ class GetTax
   # only valid line items will be accepted
   orderLine: (orderLine) ->
     if orderLine?
-      @_orderLines = [] unless @_orderLines?
       throw new Error 'incorrect type: expected OrderLine' unless orderLine.constructor is OrderLine
+      @_orderLines = [] unless @_orderLines?
       @_orderLines.push orderLine.validate()
       @_address orderLine.origin()
       @_address orderLine.destination()
@@ -238,7 +232,7 @@ class GetTax
         chunk.copy data, read
         read += chunk.length
       .on 'close', (e) ->
-        # this would be weird, connecting reset before HTTP transaction complete
+        # this would be weird, connection reset before HTTP transaction complete
         error? e
       .on 'end', ->
         # process response body
@@ -254,7 +248,8 @@ class GetTax
     @
 
 # being required or invoked from command-line?
-if exports.main isnt module
+if require.main isnt module
+  p exports
   exports.GetTax = GetTax
   exports.Address = Address
   exports.OrderLine = OrderLine
@@ -277,8 +272,9 @@ else
       ).price 10
     ).orderDate(new Date)
     .customerCode('TEST')
-    .request(headers, reply) -> p reply.toString(),
-      (e) ->
-        r "error: #{e}"
+    .request (headers, reply) ->
+        p 'SUCCESS'
+        p reply.toString()
+      (e) -> r "error: #{e}"
   test()
 

@@ -1,4 +1,14 @@
-# CoffeeScript AvaTax REST API utilities
+# avatax-api.coffee
+#
+# AvaTax REST API utilities for CoffeeScript
+#
+# Copyright 2012 Avalara, Inc.
+#
+# Released under the MIT License.
+# #######################################################
+# author: Bryce Howard
+# version: 0.1.0
+#
 http = require 'http'
 https = require 'https'
 url = require 'url'

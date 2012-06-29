@@ -1,5 +1,9 @@
-# CoffeeScript AvaTax API
-Very primitive CoffeeScript-based AvaTax API implementation supporting only GetTax operation, and of that only a limited number of fields. Makes clumsy attempt at basic validation of request fields. Has no dependencies to third-party utilities. Tested and developed under node.js 0.7.9 and CoffeeScript 1.3.3. Uses a static configuration scheme for credentials and API endpoint, see avatax-config.coffee.template.
+# node.js AvaTax integration library, written in CoffeeScript
+minimal node.js integration library for the Avalara AvaTax REST API. supports only the GetTax operation, 
+and of that only a limited number of fields. performs basic validation of request fields. has no dependencies to third-party utilities. 
+tested and developed under node.js 0.7.9 and CoffeeScript 1.3.3. uses a static configuration scheme for credentials and API endpoint, see avatax-config.coffee.template.
+
+AvaTax REST API GetTax documentation may be found at http://developer.avalara.com/api-docs/rest/resources/tax/get/ver-post/
 
 # License
 All files contained in this repository are released under the MIT license:

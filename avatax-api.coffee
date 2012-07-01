@@ -56,7 +56,8 @@ class Address
       @_lines.push line ; return @
     @_lines
 
-  # for purposes of hashing produces canonical representation of instance
+  # cobbles together all fields in one line and useless for presentation.
+  # utilized for uniqueness constraint
   toString: ->
     s = ''
     for own name, value of @
@@ -66,8 +67,8 @@ class Address
         s += line for line in @_lines
     s
 
-  # translates instance to form directly embeddable
-  # in a GetTax REST API request
+  # translates instance to a form that can be directly
+  # serialized into a GetTax REST API request
   toObject: ->
     result = PostalCode: @_postalCode
     for i in [0...@_lines.length]
@@ -259,7 +260,6 @@ class GetTax
 
 # being required or invoked from command-line?
 if require.main isnt module
-  p exports
   exports.GetTax = GetTax
   exports.Address = Address
   exports.OrderLine = OrderLine

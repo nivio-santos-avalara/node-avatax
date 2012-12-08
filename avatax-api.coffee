@@ -58,7 +58,7 @@ class Address
 
   # cobbles together all fields in one line and useless for presentation.
   # utilized for uniqueness constraint
-  toString: ->
+  stringify: ->
     s = ''
     for own name, value of @
       if value? and value.constructor is String
@@ -69,27 +69,29 @@ class Address
 
   # translates instance to a form that can be directly
   # serialized into a GetTax REST API request
-  toObject: ->
-    result = PostalCode: @_postalCode
-    for i in [0...@_lines.length]
-      result["Line#{i + 1}"] = @_lines[i]
-    result.AddressCode = @_addressCode if @_addressCode?
-    result.City = @_city if @_city?
-    result.Region = @_region if @_region?
-    result.Country = @_country if @_country?
+  objectify: ->
+    result =
+      PostalCode: @_postalCode
+      AddressCode: @_addressCode if @_addressCode?
+      City: @_city if @_city?
+      Region: @_region if @_region?
+      Country: @_country if @_country?
+    if @_lines?
+      for i in [0...@_lines.length]
+        result["Line#{i + 1}"] = @_lines[i]
     result
 
   # ensures all fields required by API are present
   validate: ->
-    unless @_postalCode? and @_lines?
-      throw new Error 'Missing 1 or more required fields (line and postalCode)'
+    unless @_postalCode? or @_country?
+      throw new Error 'Missing 1 or more required fields (postalCode and/or country)'
     @
 
 # AvaTax GetTax request "LineItem" element
 class OrderLine
 
   # fields required by API
-  _required: ['dest','origin','price','qty']
+  _required: ['lineno','dest','origin','price','qty']
 
   # quantity shipped/purchased
   quantity: (qty) ->
@@ -117,6 +119,17 @@ class OrderLine
       throw new Error 'incorrect type: expected Address' unless address.constructor is Address
       @_origin = address.validate() ; return @
     @_origin
+
+  # product description
+  description: (desc) ->
+    if desc?
+      @_description = desc; return @
+    @_description
+
+  lineNo: (lineno) ->
+    if lineno?
+      @_lineno = lineno; return @
+    @_lineno
 
   # ensures all fields required by API are present
   validate: ->
@@ -148,8 +161,8 @@ class GetTax
         @_addresses = {}
         @_addrCount = 0
       throw new Error 'incorrect type: expected Address' unless address.constructor is Address
-      unless @_addresses[address.toString()]?
-        @_addresses[address.toString()] = address.validate()
+      unless @_addresses[address.stringify()]?
+        @_addresses[address.stringify()] = address.validate()
         # assign address code based upon index we decide for it within request
         # TODO this a possibly a bad idea. what if address is being shared between
         # instances of GetTax? quite possible given asynchronous modality of JS
@@ -194,20 +207,21 @@ class GetTax
     @
 
   # translates instance GetTax REST API request document
-  toObject: ->
+  objectify: ->
     @validate()
     addresses = []
     # add all unique line item addresses
     for own name,address of @_addresses
-      addresses.push address.toObject()
+      addresses.push address.objectify()
     # all line items
     lines = for line,i in @_orderLines
-      LineNo: i + 1
+      LineNo: line.lineNo()
       # convert addresses to index reference form
-      OriginCode: @_addresses[line.origin().toString()].addressCode()
-      DestinationCode: @_addresses[line.destination().toString()].addressCode()
+      OriginCode: @_addresses[line.origin().stringify()].addressCode()
+      DestinationCode: @_addresses[line.destination().stringify()].addressCode()
       Qty: line.quantity()
       Amount: line.quantity() * line.price()
+      Description: line.description() if line.description()?
     # top-level of request document
     request =
       DocDate: @orderDate()
@@ -216,7 +230,7 @@ class GetTax
       Lines: lines
 
   # serialize request document
-  toJSON: -> JSON.stringify @toObject()
+  jsonify: -> JSON.stringify @objectify()
 
   # issues an AvaTax GetTax REST API request
   #
@@ -224,11 +238,12 @@ class GetTax
   #   invoked with response HTTP headers and deserialized results
   # error: callback invoked upon error; obstensibly passed Error instance
   request: (success,error) ->
-    body = @toJSON()
+    body = @jsonify()
     options = url.parse @_endpoint
     options.method = 'POST'
-    options.headers = 'Content-Length': body.length
-    options.headers['Content-Type'] = 'text/json'
+    options.headers =
+      'Content-Length': body.length
+      'Content-Type': 'text/json'
     options.auth = @_credentials.user + ':' + @_credentials.password
     # deal with eventuality that maybe using non-TLS API endpoint for testing
     protocol = if options.protocol is 'https:' then https else http
@@ -250,9 +265,9 @@ class GetTax
         #TODO but what if we've a non-200 status???
         unless response.statusCode is 200
           error?(new Error "Non-200 status [#{response.statusCode}]")
-          r "ERROR: #{data.toString()}"
+          r "ERROR: #{data.tostring()}"
         else
-          success? response.headers, data.toString()
+          success? response.headers, JSON.parse data.toString()
     .on 'error', (e) ->
       error? e
     .end body
@@ -269,22 +284,23 @@ else
   # simple test-case. expects external configuration (i.e. avatax-config.coffee)
   test = ->
     new GetTax().orderLine(
-      new OrderLine().destination(
-        new Address()
-          .line('435 Ericksen Avenue Northeast')
-          .line('#250')
-          .postalCode('98110')
+      new OrderLine(
+      ).lineNo(1
+      ).destination(
+        new Address(
+        ).postalCode '98110'
+          #).country 'NL'
       ).origin(
-        new Address()
-          .line('100 Ravine Lane NE')
-          .line('#220')
-          .postalCode('98110')
-      ).price 10
-    ).orderDate(new Date)
-    .customerCode('TEST')
-    .request (headers, reply) ->
-        p 'SUCCESS'
-        p reply.toString()
+        new Address(
+        ).line('100 Ravine Lane NE'
+        ).line('#220'
+        ).postalCode '98110'
+      ).price(10
+      ).description 'Nike Air Jordans'
+    ).orderDate(new Date
+    ).customerCode('TEST'
+    ).request (headers, reply) ->
+        pp reply
       (e) -> r "error: #{e}"
   test()
 

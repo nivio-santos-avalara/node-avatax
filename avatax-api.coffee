@@ -162,7 +162,7 @@ class GetTax
       return @
     @_orderLines
 
-  # set/get transation date
+  # set/get transaction date
   orderDate: (date) ->
     if date?
       unless util.isDate(date) or date.constructor is String

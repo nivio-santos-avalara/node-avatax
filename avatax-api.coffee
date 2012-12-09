@@ -41,7 +41,7 @@ class Address
   # generate setter/getters for simple properties
   # return current setting value if none supplied; "this" if supplied
   # (to support method chaining)
-  for prop in ['city', 'postalCode', 'region', 'country', 'addressCode']
+  for prop in ['city','postalCode','region','country','addressCode']
     do (prop) =>
       @::[prop] = (value) ->
         unless value? then @["_#{prop}"]
@@ -51,8 +51,8 @@ class Address
   # represented as "Line[#]" in request, where # is between 1 and 3
   line: (line) ->
     if line?
-      @_lines = [] unless @_lines?
-      throw new Error 'attempt to exceed maximum number of supported address lines (<= 3)' if @_lines.length == 3
+      @_lines ?= []
+      throw new Error 'attempt to exceed maximum number of supported address lines (<= 3)' if @_lines.length is 3
       @_lines.push line ; return @
     @_lines
 
@@ -60,58 +60,49 @@ class Address
   # utilized for uniqueness constraint
   stringify: ->
     s = ''
-    for own name, value of @
-      if value? and value.constructor is String
-        s += value
-      else if value? and name is '_lines' and @_lines?
-        s += line for line in @_lines
-    s
+    for own k,v of @
+      if v? and v.constructor is String
+        s += v
+    s += line for line in @line() if @line()?
 
   # translates instance to a form that can be directly
   # serialized into a GetTax REST API request
   objectify: ->
     result =
-      PostalCode: @_postalCode
-      AddressCode: @_addressCode if @_addressCode?
-      City: @_city if @_city?
-      Region: @_region if @_region?
-      Country: @_country if @_country?
-    if @_lines?
-      for i in [0...@_lines.length]
-        result["Line#{i + 1}"] = @_lines[i]
+      PostalCode: @postalCode()
+      AddressCode: @addressCode() if @addressCode()?
+      City: @city() if @city()?
+      Region: @region() if @region()?
+      Country: @_country if @country()?
+    result["Line#{i + 1}"] = line for line,i in @line() if @line()?
     result
 
   # ensures all fields required by API are present
   validate: ->
-    unless @_postalCode? or @_country?
+    unless @postalCode()? or @country()?
       throw new Error 'Missing 1 or more required fields (postalCode and/or country)'
     @
 
 # AvaTax GetTax request "LineItem" element
 class OrderLine
 
-  # fields required by API
-  _required: ['lineno','dest','origin','price','qty']
+  # generate setter/getters for simple properties
+  # return current setting value if none supplied; "this" if supplied
+  # (to support method chaining)
+  for prop in ['lineNo','description','price','quantity']
+    do (prop) =>
+      @::[prop] = (value) ->
+        unless value? then @["_#{prop}"]
+        else @["_#{prop}"] = value; @
 
-  # quantity shipped/purchased
-  quantity: (qty) ->
-    if qty?
-      @_qty = qty; return @
-    @_qty
-
-  # price of single unit
-  price: (price) ->
-    if price?
-      @_price = price
-      @_qty = 1 unless @_qty? ; return @
-    @_price
+  constructor: -> @quantity(1)
 
   # set/get ship-to address
   destination: (address) ->
     if address?
       throw new Error 'incorrect type: expected Address' unless address.constructor is Address
-      @_dest = address.validate() ; return @
-    @_dest
+      @_destination = address.validate() ; return @
+    @_destination
 
   # set/get ship-from address
   origin: (address) ->
@@ -120,21 +111,10 @@ class OrderLine
       @_origin = address.validate() ; return @
     @_origin
 
-  # product description
-  description: (desc) ->
-    if desc?
-      @_description = desc; return @
-    @_description
-
-  lineNo: (lineno) ->
-    if lineno?
-      @_lineno = lineno; return @
-    @_lineno
-
   # ensures all fields required by API are present
   validate: ->
-    for prop in @_required
-      throw new Error "Missing required field [#{prop}]" unless @["_#{prop}"]?
+    for prop in ['lineNo','destination','origin','price','quantity']
+      throw new Error "Missing required field [#{prop}]" unless @[prop]()?
     @
 
 ################################################################################
@@ -157,16 +137,14 @@ class GetTax
   #   items make reference to these by index.
   _address: (address) ->
     if address?
-      unless @_addresses?
-        @_addresses = {}
-        @_addrCount = 0
       throw new Error 'incorrect type: expected Address' unless address.constructor is Address
+      @_addresses ?= []
       unless @_addresses[address.stringify()]?
         @_addresses[address.stringify()] = address.validate()
         # assign address code based upon index we decide for it within request
         # TODO this a possibly a bad idea. what if address is being shared between
         # instances of GetTax? quite possible given asynchronous modality of JS
-        address.addressCode ++@_addrCount
+        address.addressCode(@_addresses.length + 1)
       return @
     @_addresses
 
@@ -175,10 +153,10 @@ class GetTax
   # any unique addresses contained therein are added to request document
   # only valid line items will be accepted
   orderLine: (orderLine) ->
-    if orderLine?
+    if orderLine?.validate()
       throw new Error 'incorrect type: expected OrderLine' unless orderLine.constructor is OrderLine
-      @_orderLines = [] unless @_orderLines?
-      @_orderLines.push orderLine.validate()
+      @_orderLines ?= []
+      @_orderLines.push orderLine
       @_address orderLine.origin()
       @_address orderLine.destination()
       return @
@@ -187,7 +165,8 @@ class GetTax
   # set/get transation date
   orderDate: (date) ->
     if date?
-      throw new Error 'incorrect type: expected Date or String' unless util.isDate(date) or date.constructor is String
+      unless util.isDate(date) or date.constructor is String
+        throw new Error 'incorrect type: expected Date or String'
       if util.isDate date
         @_orderDate = date.toJSON().match(/^\d+-\d+-\d+/)[0]
       else @_orderDate = date
@@ -202,32 +181,25 @@ class GetTax
 
   # ensures all fields required by API are present
   validate: ->
-    unless @_orderLines? and @_orderDate? and @_customerCode?
-      throw new Error 'Missing 1 or more required fields (orderLine, orderDate, customerCode)'
+    for prop in ['orderLine','orderDate','customerCode']
+      throw new Error "Missing required field [#{prop}]" unless @[prop]()?
     @
 
   # translates instance GetTax REST API request document
   objectify: ->
     @validate()
-    addresses = []
-    # add all unique line item addresses
-    for own name,address of @_addresses
-      addresses.push address.objectify()
-    # all line items
-    lines = for line,i in @_orderLines
-      LineNo: line.lineNo()
-      # convert addresses to index reference form
-      OriginCode: @_addresses[line.origin().stringify()].addressCode()
-      DestinationCode: @_addresses[line.destination().stringify()].addressCode()
-      Qty: line.quantity()
-      Amount: line.quantity() * line.price()
-      Description: line.description() if line.description()?
-    # top-level of request document
-    request =
-      DocDate: @orderDate()
-      CustomerCode: @customerCode()
-      Addresses: addresses
-      Lines: lines
+    DocDate: @orderDate()
+    CustomerCode: @customerCode()
+    Addresses: v.objectify() for own k,v of @_addresses
+    Lines:
+      for line,i in @orderLine()
+        LineNo: line.lineNo()
+        # convert addresses to index reference form
+        OriginCode: @_addresses[line.origin().stringify()].addressCode()
+        DestinationCode: @_addresses[line.destination().stringify()].addressCode()
+        Qty: line.quantity()
+        Amount: line.quantity() * line.price()
+        Description: line.description() if line.description()?
 
   # serialize request document
   jsonify: -> JSON.stringify @objectify()

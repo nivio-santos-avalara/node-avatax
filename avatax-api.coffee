@@ -27,7 +27,7 @@ class Config
   # retrieve credentials and possible override for API endpoint
   try
     config = require './avatax-config'
-    if config.Credentials? and config.Credentials.user? and config.Credentials.password?
+    if config.Credentials?.user? and config.Credentials?.password?
       Credentials: config.Credentials
     else
       w 'missing AvaTax credentials in config file ... must be configured programmatically'
@@ -61,8 +61,7 @@ class Address
   stringify: ->
     s = ''
     for own k,v of @
-      if v? and v.constructor is String
-        s += v
+      s += v if v?.constructor is String
     s += line for line in @line() if @line()?
 
   # translates instance to a form that can be directly

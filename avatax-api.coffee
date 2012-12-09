@@ -99,14 +99,14 @@ class OrderLine
   # set/get ship-to address
   destination: (address) ->
     if address?
-      throw new Error 'incorrect type: expected Address' unless address.constructor is Address
+      throw new Error 'incorrect type: expected Address' unless address instanceof Address
       @_destination = address.validate() ; return @
     @_destination
 
   # set/get ship-from address
   origin: (address) ->
     if address?
-      throw new Error 'incorrect type: expected Address' unless address.constructor is Address
+      throw new Error 'incorrect type: expected Address' unless address instanceof Address
       @_origin = address.validate() ; return @
     @_origin
 
@@ -136,7 +136,7 @@ class GetTax
   #   items make reference to these by index.
   _address: (address) ->
     if address?
-      throw new Error 'incorrect type: expected Address' unless address.constructor is Address
+      throw new Error 'incorrect type: expected Address' unless address instanceof Address
       @_addresses ?= []
       unless @_addresses[address.stringify()]?
         @_addresses[address.stringify()] = address.validate()
@@ -153,7 +153,7 @@ class GetTax
   # only valid line items will be accepted
   orderLine: (orderLine) ->
     if orderLine?.validate()
-      throw new Error 'incorrect type: expected OrderLine' unless orderLine.constructor is OrderLine
+      throw new Error 'incorrect type: expected OrderLine' unless orderLine instanceof OrderLine
       @_orderLines ?= []
       @_orderLines.push orderLine
       @_address orderLine.origin()
